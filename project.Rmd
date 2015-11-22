@@ -1,0 +1,105 @@
+---
+title: "Machine Learning Project"
+author: "Michal Buczynski"
+date: "22 listopada 2015"
+output: html_document
+---
+
+# Introduction
+
+In this paper, I will analyse the data from the personal activity tracker and try to identify the manner in which the barbell lifts were performed. Participants were asked to perform exercises in 5 different ways: correctly and incorrectly.
+
+The training dataset contains 19 622 observations and 160 variables.
+
+```{r, echo=TRUE,eval=TRUE}
+link <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+link_test <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+setwd("~/Documents/Data Science Specialisation")
+
+my_data <- read.csv("data.csv",header=TRUE)
+my_test <- read.csv("test.csv",header=TRUE)
+
+```
+
+# Data processing
+
+The goal of this step is to clear the data and reduce its dimensionality.
+Firstly, the variables that contain mainly NAs values have to be excluded from the analysis.
+The preprocessing stages will be conducted parallely both on training and test sets.
+
+```{r,echo=TRUE}
+library(caret)
+### Function that counts the number of NAs values in the variable
+sumna <- function(x){sum(is.na(x))}
+x <- apply(my_data, 2, sumna)
+### Pick the variables that do not have NA values
+selected_variables <- which(x==0)
+
+### Training data
+my_data1 <- my_data[,selected_variables]
+### Test data
+my_test1 <- my_test[,selected_variables]
+
+### Exclude the variables that have 'kurtosis, 'skew' etc. at the beginning the variable name
+exclude_var <- grep("^kurtosis|^skew|^min|^max|^amp", names(my_data1))
+### Eliminate blanks variables like shewness and kurtosis
+
+my_data2 <- my_data1[,-exclude_var]
+my_test2 <- my_test1[,-exclude_var]
+my_data3 <- my_data2[,-c(1:7)]
+my_test3 <- my_test2[,-c(1:7)]
+
+## Show near zero variables
+nearZeroVar(my_data3, saveMetrics = TRUE)
+
+```
+The datasets have been narrowed down to 53 variables that will be used in further analysis. NearZerovar function was used to identify the variables with very small variability. The outcome suggest that there are no variables that can be excluded from the analysis due to low variability.
+
+# Training set particion
+
+The original training set consisting of 19622 observation has been splited into two datasets.
+1. training set (60% of original training dataset)
+2. testing set (40% of original training dataset)
+
+```{r}
+train_num <- createDataPartition(y=my_data3$classe, p=0.6, list=FALSE)
+
+train_set <- my_data3[train_num,]
+test_set <- my_data3[-train_num,]
+
+```
+
+# Random Forest 
+
+Random Forest algorithm has been used to predict the manner in which the participants did the exercises.
+During the analysis the 5-fold cross-validation was applied to picking the parameters in the prediction function.
+
+The in of sample error should be slightly smaller than the out of sample error.
+The Random Forest model was trained on the training set using 5-Fold CV and then the accuracy of the model has been checked on the independent test set with more than 7846 observations.
+
+```{r,echo=TRUE}
+## Train the model
+train_control <- trainControl(method="cv", number=5)
+model2 <- train(classe ~., data=train_set, method="rf", trControl=train_control)
+model2
+
+## Make predictions
+
+predictions2 <- predict(model2, test_set[,-53])
+## Create confusion matrix
+confusionMatrix(predictions2,test_set$classe)
+
+## Make the prediction for the final testing set (20 observations).
+final_prediction <- predict(model2, my_test3[,-53])
+
+```
+
+# Summary
+
+The accuracy of the model on the training partiction and test set is almost the same and is equal to 99,06%.
+The model performed equally well on the indepedent 20 observation testing set. It predicted all observations correctly. Unfortunately, random forest algorithm is extremely slow and time-consuming. It took several minutes to calculate.
+
+
+
+
